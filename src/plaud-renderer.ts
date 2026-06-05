@@ -19,8 +19,25 @@ function normalizeTitle(title: string): string {
 	return trimmed.length > 0 ? trimmed : 'Untitled recording';
 }
 
-function escapeFrontmatterValue(value: string): string {
-	return value.replace(/"/g, '\\"');
+function normalizeLineEndings(value: string): string {
+	return value.replace(/\r\n?/g, '\n');
+}
+
+function formatFrontmatterString(value: string): string {
+	return JSON.stringify(normalizeLineEndings(value));
+}
+
+function sanitizeMarkdownContent(value: string): string {
+	return normalizeLineEndings(value)
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/!\[/g, '\\![');
+}
+
+function sanitizeHighlight(value: string): string {
+	return sanitizeMarkdownContent(value)
+		.replace(/\s*\n+\s*/g, ' ')
+		.trim();
 }
 
 function renderHighlights(highlights: string[]): string {
@@ -28,27 +45,27 @@ function renderHighlights(highlights: string[]): string {
 		return '- No highlights extracted.';
 	}
 
-	return highlights.map((highlight) => `- ${highlight}`).join('\n');
+	return highlights.map((highlight) => `- ${sanitizeHighlight(highlight) || 'Untitled highlight'}`).join('\n');
 }
 
 export function renderPlaudMarkdown(detail: NormalizedPlaudDetail): string {
 	const title = normalizeTitle(detail.title);
 	const date = formatDate(detail.startAtMs);
 	const duration = formatDuration(detail.durationMs);
-	const summary = detail.summary.trim() || 'No summary available.';
-	const transcript = detail.transcript.trim() || 'No transcript available.';
+	const summary = sanitizeMarkdownContent(detail.summary.trim()) || 'No summary available.';
+	const transcript = sanitizeMarkdownContent(detail.transcript.trim()) || 'No transcript available.';
 
 	return [
 		'---',
 		'source: plaud',
 		'type: recording',
-		`file_id: ${detail.fileId}`,
-		`title: "${escapeFrontmatterValue(title)}"`,
+		`file_id: ${formatFrontmatterString(detail.fileId)}`,
+		`title: ${formatFrontmatterString(title)}`,
 		`date: ${date}`,
 		`duration: ${duration}`,
 		'---',
 		'',
-		`# ${title}`,
+		`# ${sanitizeMarkdownContent(title)}`,
 		'',
 		'## Summary',
 		summary,

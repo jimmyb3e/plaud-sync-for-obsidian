@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 
 const root = process.cwd();
 const moduleUrl = pathToFileURL(path.join(root, 'src/plaud-vault.ts')).href;
-const {upsertPlaudNote, buildPlaudFilename} = await import(moduleUrl);
+const {upsertPlaudNote, buildPlaudFilename, normalizeSyncFolder} = await import(moduleUrl);
 
 function createMockVault(initialFiles = {}) {
   const files = new Map(Object.entries(initialFiles));
@@ -154,4 +154,14 @@ test('applies collision-safe filename fallback for new notes', async () => {
 
   assert.equal(result.action, 'created');
   assert.equal(result.path, 'Plaud/plaud-2024-11-04-first-note-3.md');
+});
+
+test('normalizes nested sync folder slashes safely', () => {
+  assert.equal(normalizeSyncFolder(' Plaud\\Meetings//Q4/ '), 'Plaud/Meetings/Q4');
+});
+
+test('rejects unsafe sync folder paths', () => {
+  assert.throws(() => normalizeSyncFolder('../Secrets'), /parent-directory/);
+  assert.throws(() => normalizeSyncFolder('.obsidian/plugins'), /hidden or Obsidian/);
+  assert.throws(() => normalizeSyncFolder('Plaud:Archive'), /not safe/);
 });

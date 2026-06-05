@@ -21,14 +21,10 @@ export class PlaudSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Plaud token')
-			.setDesc('Stored in Obsidian secret storage when available.')
+			.setDesc('Stored in Obsidian secret storage when available. Saved tokens are not displayed here.')
 			.addText((text) => {
 				text.inputEl.type = 'password';
-				text.setPlaceholder('Paste plaud token');
-
-				void getPlaudToken(this.app).then((token) => {
-					text.setValue(token ?? '');
-				});
+				text.setPlaceholder('Paste new plaud token');
 
 				text.onChange(async (value) => {
 					const token = value.trim();
@@ -41,6 +37,7 @@ export class PlaudSettingTab extends PluginSettingTab {
 
 					try {
 						await setPlaudToken(this.app, token);
+						text.setValue('');
 						await this.refreshTokenStatus(tokenStatusSetting);
 						new Notice('Plaud token saved.');
 					} catch (error) {

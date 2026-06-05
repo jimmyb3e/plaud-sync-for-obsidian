@@ -26,7 +26,7 @@ test('renders frontmatter contract fields', () => {
   assert.match(markdown, /^---/m);
   assert.match(markdown, /^source: plaud$/m);
   assert.match(markdown, /^type: recording$/m);
-  assert.match(markdown, /^file_id: f_abc$/m);
+  assert.match(markdown, /^file_id: "f_abc"$/m);
   assert.match(markdown, /^title: "Weekly sync"$/m);
   assert.match(markdown, /^date: 2024-11-04$/m);
   assert.match(markdown, /^duration: 30 min$/m);
@@ -82,4 +82,21 @@ test('escapes quotes in title frontmatter while preserving heading text', () => 
 
   assert.match(markdown, /^title: "Exec \\"Q4\\" Sync"$/m);
   assert.match(markdown, /^# Exec "Q4" Sync$/m);
+});
+
+test('quotes frontmatter and neutralizes risky markdown from Plaud content', () => {
+  const markdown = renderPlaudMarkdown({
+    ...sampleDetail,
+    fileId: 'f_bad"\nmalicious: true',
+    title: 'Title <script>alert(1)</script>',
+    summary: '<img src=x onerror=alert(1)> ![track](https://example.com/pixel)',
+    highlights: ['First line\n![track](https://example.com/pixel)'],
+    transcript: 'Speaker: <iframe src="https://example.com"></iframe>'
+  });
+
+  assert.match(markdown, /^file_id: "f_bad\\"\\nmalicious: true"$/m);
+  assert.doesNotMatch(markdown, /^malicious: true$/m);
+  assert.match(markdown, /&lt;img src=x onerror=alert\(1\)&gt; \\!\[track\]/);
+  assert.match(markdown, /- First line \\!\[track\]/);
+  assert.match(markdown, /&lt;iframe src="https:\/\/example\.com"&gt;&lt;\/iframe&gt;/);
 });

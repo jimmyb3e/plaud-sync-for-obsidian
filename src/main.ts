@@ -12,6 +12,7 @@ import {type PlaudVaultAdapter, upsertPlaudNote} from './plaud-vault';
 import {PlaudApiError, type PlaudApiClient, type PlaudFileDetail} from './plaud-api';
 import {DEFAULT_RETRY_POLICY, sanitizeTelemetryMessage, type RetryTelemetryEvent, withRetry} from './plaud-retry';
 import {hydratePlaudDetailContent} from './plaud-content-hydrator';
+import {normalizeSignedContentUrl} from './security.ts';
 
 function toErrorMessage(error: unknown): string {
 	if (error instanceof Error && error.message.trim().length > 0) {
@@ -203,8 +204,9 @@ export default class PlaudSyncPlugin extends Plugin {
 	}
 
 	private async fetchSignedContent(url: string): Promise<unknown> {
+		const safeUrl = normalizeSignedContentUrl(url);
 		const response = await requestUrl({
-			url,
+			url: safeUrl,
 			method: 'GET',
 			throw: false
 		});

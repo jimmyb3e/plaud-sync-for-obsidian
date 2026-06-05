@@ -61,8 +61,8 @@ Open **Settings → Community plugins → Plaud Sync**:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Plaud token | — | Your session token (stored securely, not in plugin settings) |
-| API domain | `https://api.plaud.ai` | API endpoint; change only if your account is in a different region |
+| Plaud token | — | Your session token (stored securely, not in plugin settings; saved tokens are not displayed after saving) |
+| API domain | `https://api.plaud.ai` | API endpoint; must be an HTTPS `plaud.ai` API host |
 | Sync folder | `Plaud` | Vault folder where notes are created |
 | Filename pattern | `plaud-{date}-{title}` | Pattern for new note filenames (`{date}` and `{title}` are replaced) |
 | Sync on startup | `true` | Automatically sync when Obsidian starts |
@@ -89,6 +89,12 @@ Open the command palette (`Ctrl/Cmd+P`) and search for:
 6. Advances the `lastSyncAtMs` checkpoint only after the full batch succeeds
 
 If sync is already running (startup or manual), additional attempts are blocked until the current run finishes.
+
+Security guardrails:
+
+- Plaud API tokens are sent only to HTTPS Plaud API hosts.
+- Signed content URLs must use HTTPS and cannot target local/private hosts.
+- Synced note content is sanitized to avoid frontmatter injection, raw HTML rendering, and remote image embeds from API-provided text.
 
 ## Troubleshooting
 

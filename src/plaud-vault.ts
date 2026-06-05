@@ -28,8 +28,35 @@ export interface UpsertPlaudNoteResult {
 	path: string;
 }
 
-function normalizeFolder(folder: string): string {
-	return folder.replace(/\/+$/, '').trim() || 'Plaud';
+const INVALID_FOLDER_SEGMENT_CHARS = /[<>:"|?*]/;
+
+export function normalizeSyncFolder(folder: string): string {
+	const normalized = folder
+		.trim()
+		.replace(/\\/g, '/')
+		.replace(/\/+/g, '/')
+		.replace(/^\/+|\/+$/g, '');
+
+	if (!normalized) {
+		return 'Plaud';
+	}
+
+	const segments = normalized.split('/');
+	for (const segment of segments) {
+		if (!segment || segment === '.' || segment === '..') {
+			throw new Error('Plaud sync folder cannot contain empty, current, or parent-directory segments.');
+		}
+
+		if (segment.startsWith('.')) {
+			throw new Error('Plaud sync folder cannot target hidden or Obsidian configuration folders.');
+		}
+
+		if (INVALID_FOLDER_SEGMENT_CHARS.test(segment)) {
+			throw new Error('Plaud sync folder contains characters that are not safe for vault folder names.');
+		}
+	}
+
+	return segments.join('/');
 }
 
 function slugify(value: string): string {
@@ -121,7 +148,7 @@ function resolveAvailablePath(folder: string, initialFileName: string, existingP
 }
 
 export async function upsertPlaudNote(input: UpsertPlaudNoteInput): Promise<UpsertPlaudNoteResult> {
-	const folder = normalizeFolder(input.syncFolder);
+	const folder = normalizeSyncFolder(input.syncFolder);
 	await input.vault.ensureFolder(folder);
 
 	const existingPaths = await input.vault.listMarkdownFiles(folder);
