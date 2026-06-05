@@ -24,3 +24,9 @@ data.json
 
 # Byterover memory
 .brv/
+
+# Local agent handoff notes
+.claude/
+
+# Local scratch exports and migration test files
+.sandbox/
