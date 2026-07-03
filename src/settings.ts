@@ -93,7 +93,7 @@ export class PlaudSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Filename pattern')
-			.setDesc('Pattern used for new synced files.')
+			.setDesc('Pattern used for new synced files. Supports {date}, {time}, and {title}.')
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.filenamePattern)
 				.setValue(this.plugin.settings.filenamePattern)

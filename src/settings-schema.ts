@@ -7,12 +7,14 @@ export interface PlaudPluginSettings {
 	lastSyncAtMs: number;
 }
 
+const LEGACY_DEFAULT_FILENAME_PATTERN = 'plaud-{date}-{title}';
+
 export const DEFAULT_SETTINGS: PlaudPluginSettings = {
 	apiDomain: 'https://api.plaud.ai',
 	syncFolder: 'Plaud',
 	syncOnStartup: true,
 	updateExisting: true,
-	filenamePattern: 'plaud-{date}-{title}',
+	filenamePattern: 'plaud-{date}-{time}-{title}',
 	lastSyncAtMs: 0
 };
 
@@ -41,6 +43,11 @@ function readTimestampMs(value: unknown, fallback: number): number {
 	return Math.floor(value);
 }
 
+function readFilenamePattern(value: unknown): string {
+	const pattern = readString(value, DEFAULT_SETTINGS.filenamePattern);
+	return pattern === LEGACY_DEFAULT_FILENAME_PATTERN ? DEFAULT_SETTINGS.filenamePattern : pattern;
+}
+
 export function normalizeSettings(raw: unknown): PlaudPluginSettings {
 	const persisted = isRecord(raw) ? raw : {};
 
@@ -49,7 +56,7 @@ export function normalizeSettings(raw: unknown): PlaudPluginSettings {
 		syncFolder: readString(persisted.syncFolder, DEFAULT_SETTINGS.syncFolder),
 		syncOnStartup: readBoolean(persisted.syncOnStartup, DEFAULT_SETTINGS.syncOnStartup),
 		updateExisting: readBoolean(persisted.updateExisting, DEFAULT_SETTINGS.updateExisting),
-		filenamePattern: readString(persisted.filenamePattern, DEFAULT_SETTINGS.filenamePattern),
+		filenamePattern: readFilenamePattern(persisted.filenamePattern),
 		lastSyncAtMs: readTimestampMs(persisted.lastSyncAtMs, DEFAULT_SETTINGS.lastSyncAtMs)
 	};
 }

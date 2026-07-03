@@ -64,7 +64,7 @@ Open **Settings → Community plugins → Plaud Sync**:
 | Plaud token | — | Your session token (stored securely, not in plugin settings; saved tokens are not displayed after saving) |
 | API domain | `https://api.plaud.ai` | API endpoint; must be an HTTPS `plaud.ai` API host |
 | Sync folder | `Plaud` | Vault folder where notes are created |
-| Filename pattern | `plaud-{date}-{title}` | Pattern for new note filenames (`{date}` and `{title}` are replaced) |
+| Filename pattern | `plaud-{date}-{time}-{title}` | Pattern for new note filenames (`{date}`, `{time}`, and `{title}` are replaced) |
 | Sync on startup | `true` | Automatically sync when Obsidian starts |
 | Update existing notes | `true` | Overwrite notes that already exist (matched by `file_id`) |
 

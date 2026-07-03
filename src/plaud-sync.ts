@@ -41,6 +41,7 @@ export interface RunPlaudSyncInput {
 		fileId: string;
 		title: string;
 		date: string;
+		time: string;
 		markdown: string;
 	}) => Promise<UpsertPlaudNoteResult>;
 }
@@ -70,12 +71,34 @@ function normalizeBoolean(value: unknown): boolean {
 	return false;
 }
 
+function padTimestampPart(value: number): string {
+	return String(value).padStart(2, '0');
+}
+
 function formatDate(timestampMs: number): string {
 	if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
 		return '1970-01-01';
 	}
 
-	return new Date(timestampMs).toISOString().slice(0, 10);
+	const date = new Date(timestampMs);
+	return [
+		date.getFullYear(),
+		padTimestampPart(date.getMonth() + 1),
+		padTimestampPart(date.getDate())
+	].join('-');
+}
+
+function formatTime(timestampMs: number): string {
+	if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
+		return '00-00-00';
+	}
+
+	const date = new Date(timestampMs);
+	return [
+		padTimestampPart(date.getHours()),
+		padTimestampPart(date.getMinutes()),
+		padTimestampPart(date.getSeconds())
+	].join('-');
 }
 
 function resolveFileId(summary: PlaudFileSummary): string {
@@ -140,6 +163,7 @@ export async function runPlaudSync(input: RunPlaudSyncInput): Promise<PlaudSyncS
 				fileId: normalized.fileId,
 				title: normalized.title,
 				date: formatDate(normalized.startAtMs),
+				time: formatTime(normalized.startAtMs),
 				markdown
 			});
 

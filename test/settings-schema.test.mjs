@@ -29,7 +29,7 @@ test('default settings expose full Plaud sync schema', () => {
   assert.equal(DEFAULT_SETTINGS.syncFolder, 'Plaud');
   assert.equal(DEFAULT_SETTINGS.syncOnStartup, true);
   assert.equal(DEFAULT_SETTINGS.updateExisting, true);
-  assert.equal(DEFAULT_SETTINGS.filenamePattern, 'plaud-{date}-{title}');
+  assert.equal(DEFAULT_SETTINGS.filenamePattern, 'plaud-{date}-{time}-{title}');
   assert.equal(DEFAULT_SETTINGS.lastSyncAtMs, 0);
 });
 
@@ -59,6 +59,14 @@ test('normalizeSettings protects against malformed persisted values', () => {
   });
 
   assert.deepEqual(merged, DEFAULT_SETTINGS);
+});
+
+test('normalizeSettings migrates the old default filename pattern', () => {
+  const merged = normalizeSettings({
+    filenamePattern: 'plaud-{date}-{title}'
+  });
+
+  assert.equal(merged.filenamePattern, DEFAULT_SETTINGS.filenamePattern);
 });
 
 test('toPersistedSettings preserves explicit lastSyncAtMs checkpoint semantics', () => {

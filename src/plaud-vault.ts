@@ -9,6 +9,7 @@ export interface PlaudVaultAdapter {
 export interface BuildFilenameInput {
 	filenamePattern: string;
 	date: string;
+	time?: string;
 	title: string;
 }
 
@@ -20,6 +21,7 @@ export interface UpsertPlaudNoteInput {
 	fileId: string;
 	title: string;
 	date: string;
+	time: string;
 	markdown: string;
 }
 
@@ -67,6 +69,51 @@ function slugify(value: string): string {
 		.replace(/-+/g, '-');
 
 	return normalized || 'recording';
+}
+
+function datePrefixCandidates(date: string): string[] {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+	if (!match) {
+		return [];
+	}
+
+	const [, year, month, day] = match;
+	const monthNoZero = String(Number(month));
+	const dayNoZero = String(Number(day));
+	const candidates = [
+		`${year}-${month}-${day}`,
+		`${year}-${monthNoZero}-${dayNoZero}`,
+		`${month}-${day}`,
+		`${month}-${dayNoZero}`,
+		`${monthNoZero}-${day}`,
+		`${monthNoZero}-${dayNoZero}`
+	];
+
+	return [...new Set(candidates)].sort((a, b) => b.length - a.length);
+}
+
+function stripMatchingDatePrefix(titleSlug: string, date: string): string {
+	for (const candidate of datePrefixCandidates(date)) {
+		if (titleSlug === candidate) {
+			return '';
+		}
+
+		const prefix = `${candidate}-`;
+		if (titleSlug.startsWith(prefix)) {
+			return titleSlug.slice(prefix.length);
+		}
+	}
+
+	return titleSlug;
+}
+
+function buildTitleSlugForPattern(title: string, date: string, pattern: string): string {
+	const titleSlug = slugify(title);
+	if (!pattern.includes('{date}')) {
+		return titleSlug;
+	}
+
+	return stripMatchingDatePrefix(titleSlug, date) || 'recording';
 }
 
 function extractFrontmatter(content: string): string {
@@ -125,9 +172,11 @@ function withCollisionSuffix(fileName: string, suffix: number): string {
 }
 
 export function buildPlaudFilename(input: BuildFilenameInput): string {
-	const pattern = input.filenamePattern.trim() || 'plaud-{date}-{title}';
+	const pattern = input.filenamePattern.trim() || 'plaud-{date}-{time}-{title}';
+	const title = buildTitleSlugForPattern(input.title, input.date, pattern);
 	const replacedDate = pattern.replace(/\{date\}/g, input.date);
-	const filled = replacedDate.replace(/\{title\}/g, slugify(input.title));
+	const replacedTime = replacedDate.replace(/\{time\}/g, input.time ?? '00-00-00');
+	const filled = replacedTime.replace(/\{title\}/g, title);
 	const filename = slugify(filled).replace(/^-+|-+$/g, '');
 	return `${filename || 'plaud-recording'}.md`;
 }
@@ -169,6 +218,7 @@ export async function upsertPlaudNote(input: UpsertPlaudNoteInput): Promise<Upse
 	const initialFileName = buildPlaudFilename({
 		filenamePattern: input.filenamePattern,
 		date: input.date,
+		time: input.time,
 		title: input.title
 	});
 	const path = resolveAvailablePath(folder, initialFileName, existingSet);

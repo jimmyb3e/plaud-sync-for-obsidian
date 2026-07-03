@@ -39,14 +39,25 @@ function createMockVault(initialFiles = {}) {
   };
 }
 
-test('buildPlaudFilename is deterministic and slug-safe', () => {
+test('buildPlaudFilename supports time and removes a matching Plaud title date', () => {
   const filename = buildPlaudFilename({
-    filenamePattern: 'plaud-{date}-{title}',
-    date: '2024-11-04',
-    title: 'Weekly Sync: Team / Product'
+    filenamePattern: 'plaud-{date}-{time}-{title}',
+    date: '2026-07-02',
+    time: '16-00-52',
+    title: '07-02 Debrief Meeting: DFW Proposal and Phase Two Planning'
   });
 
-  assert.equal(filename, 'plaud-2024-11-04-weekly-sync-team-product.md');
+  assert.equal(filename, 'plaud-2026-07-02-16-00-52-debrief-meeting-dfw-proposal-and-phase-two-planning.md');
+});
+
+test('buildPlaudFilename keeps title date when pattern does not include date', () => {
+  const filename = buildPlaudFilename({
+    filenamePattern: '{title}',
+    date: '2026-07-02',
+    title: '07-02 Debrief Meeting'
+  });
+
+  assert.equal(filename, '07-02-debrief-meeting.md');
 });
 
 test('creates sync folder and new note when no existing file_id match', async () => {
