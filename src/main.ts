@@ -13,6 +13,7 @@ import {PlaudApiError, type PlaudApiClient, type PlaudFileDetail} from './plaud-
 import {DEFAULT_RETRY_POLICY, sanitizeTelemetryMessage, type RetryTelemetryEvent, withRetry} from './plaud-retry';
 import {hydratePlaudDetailContent} from './plaud-content-hydrator';
 import {normalizeSignedContentUrl} from './security.ts';
+import {PlaudScheduledSync} from './scheduled-sync';
 
 function toErrorMessage(error: unknown): string {
 	if (error instanceof Error && error.message.trim().length > 0) {
@@ -51,21 +52,27 @@ function formatSyncSummary(summary: PlaudSyncSummary): string {
 export default class PlaudSyncPlugin extends Plugin {
 	settings: PlaudPluginSettings;
 	private syncRuntime: PlaudSyncRuntime | null = null;
+	private scheduledSync: PlaudScheduledSync | null = null;
+	private settingsSaveQueue: Promise<void> = Promise.resolve();
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		this.syncRuntime = createPlaudSyncRuntime({
-			isStartupEnabled: () => this.settings.syncOnStartup,
-			runSync: async (trigger) => this.runSync(trigger),
-			onLocked: (message) => {
-				new Notice(message);
+		this.scheduledSync = new PlaudScheduledSync({
+			getSettings: () => this.settings,
+			saveSettings: () => this.saveSettings(),
+			runtime: this.ensureSyncRuntime(),
+			sync: () => this.executeSyncBatch(),
+			onFailure: (failure) => {
+				console.warn('[plaud-sync] scheduled sync failed', {failure});
+				new Notice('Plaud scheduled sync failed. Check settings and try syncing manually.');
 			}
 		});
+		this.register(() => this.scheduledSync?.stop());
 
 		registerPlaudCommands(this);
 		this.addSettingTab(new PlaudSettingTab(this.app, this));
 
-		void this.syncRuntime.runStartupSync();
+		void this.scheduledSync.start();
 	}
 
 	async loadSettings(): Promise<void> {
@@ -73,7 +80,12 @@ export default class PlaudSyncPlugin extends Plugin {
 	}
 
 	async saveSettings(): Promise<void> {
-		await this.saveData(toPersistedSettings(this.settings));
+		this.scheduledSync?.settingsChanged();
+		const persisted = toPersistedSettings(this.settings);
+		// Serialize UI, incremental checkpoint, and scheduled status writes to prevent stale saves.
+		const save = this.settingsSaveQueue.catch(() => undefined).then(() => this.saveData(persisted));
+		this.settingsSaveQueue = save;
+		await save;
 	}
 
 	async runPlaudSyncNow(): Promise<void> {
