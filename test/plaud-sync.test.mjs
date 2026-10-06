@@ -11,7 +11,7 @@ const {runPlaudSync} = await import(moduleUrl);
 function baseSettings(overrides = {}) {
   return {
     syncFolder: 'Plaud',
-    filenamePattern: 'plaud-{date}-{title}',
+    filenamePattern: 'plaud-{date}-{time}-{title}',
     updateExisting: true,
     lastSyncAtMs: 0,
     ...overrides
@@ -64,6 +64,44 @@ test('filters trashed recordings and applies incremental selection from lastSync
   assert.equal(summary.selected, 1);
   assert.deepEqual(checkpointCalls, [200]);
   assert.equal(summary.lastSyncAtMsAfter, 200);
+});
+
+test('passes formatted date and time tokens to note upsert', async () => {
+  const startAtMs = new Date(2026, 6, 2, 16, 0, 52).getTime();
+  const upsertInputs = [];
+
+  await runPlaudSync({
+    api: {
+      async listFiles() {
+        return [{id: 'detail', start_time: startAtMs, is_trash: false}];
+      },
+      async getFileDetail(id) {
+        return {id, file_id: id, file_name: '07-02 Debrief Meeting', start_time: startAtMs, duration: 60000};
+      }
+    },
+    vault: {},
+    settings: baseSettings(),
+    saveCheckpoint: async () => {},
+    normalizeDetail: (raw) => ({
+      id: raw.id,
+      fileId: raw.file_id,
+      title: raw.file_name,
+      startAtMs: raw.start_time,
+      durationMs: raw.duration,
+      summary: '',
+      highlights: [],
+      transcript: '',
+      raw
+    }),
+    renderMarkdown: () => '---\nfile_id: detail\n---',
+    upsertNote: async (input) => {
+      upsertInputs.push(input);
+      return {action: 'created', path: 'Plaud/detail.md'};
+    }
+  });
+
+  assert.equal(upsertInputs[0].date, '2026-07-02');
+  assert.equal(upsertInputs[0].time, '16-00-52');
 });
 
 test('returns created/updated/skipped/failed summary counts and does not checkpoint on failures', async () => {

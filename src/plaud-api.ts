@@ -1,3 +1,5 @@
+import {normalizePlaudApiDomain} from './security.ts';
+
 export type PlaudApiErrorCategory = 'auth' | 'rate_limit' | 'server' | 'network' | 'invalid_response';
 
 export class PlaudApiError extends Error {
@@ -54,10 +56,6 @@ export interface CreatePlaudApiClientOptions {
 	apiDomain: string;
 	token: string;
 	request: PlaudRequestFn;
-}
-
-function normalizeDomain(domain: string): string {
-	return domain.trim().replace(/\/+$/, '');
 }
 
 function normalizeToken(token: string): string {
@@ -215,7 +213,7 @@ function extractDetailPayload(json: unknown): PlaudFileDetail {
 
 export function createPlaudApiClient(options: CreatePlaudApiClientOptions): PlaudApiClient {
 	const request = options.request;
-	const apiDomain = normalizeDomain(options.apiDomain);
+	const apiDomain = normalizePlaudApiDomain(options.apiDomain);
 	const token = normalizeToken(options.token);
 
 	return {

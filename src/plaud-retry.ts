@@ -91,7 +91,9 @@ function retryDelayMs(baseDelayMs: number, maxDelayMs: number, attempt: number):
 }
 
 export function sanitizeTelemetryMessage(message: string): string {
-	return message.replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, 'Bearer [REDACTED]');
+	return message
+		.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+		.replace(/([?&](?:token|access_token|signature|x-amz-signature|x-amz-security-token|expires|expires_in)=)[^&\s]+/gi, '$1[REDACTED]');
 }
 
 export async function withRetry<T>(

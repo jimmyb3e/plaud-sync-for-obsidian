@@ -185,3 +185,29 @@ test('normalizes configured token that already includes bearer prefix', async ()
   await client.listFiles();
   assert.equal(called.headers.Authorization, 'Bearer tok_prefixed');
 });
+
+test('rejects non-https API domains before sending token', async () => {
+  assert.throws(
+    () => createPlaudApiClient({
+      apiDomain: 'http://api.plaud.ai',
+      token: 'tok_123',
+      request: async () => {
+        throw new Error('request should not run');
+      }
+    }),
+    /must use https/
+  );
+});
+
+test('rejects non-Plaud API domains before sending token', async () => {
+  assert.throws(
+    () => createPlaudApiClient({
+      apiDomain: 'https://example.com',
+      token: 'tok_123',
+      request: async () => {
+        throw new Error('request should not run');
+      }
+    }),
+    /plaud\.ai API host/
+  );
+});

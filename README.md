@@ -13,10 +13,11 @@ Sync your [Plaud](https://plaud.ai/) voice recordings into Markdown notes inside
 - **Retry with backoff** — transient failures (network, rate-limit, 5xx) are retried automatically; permanent failures (auth, bad response) are surfaced immediately
 - **Trash filtering** — recordings you deleted in Plaud are automatically skipped
 - **Content hydration** — fetches full transcript and AI summary content from Plaud's signed URLs
+- **Scheduled sync** — configurable daily local times, with one catch-up sync after a missed time
 
 ## Requirements
 
-- Obsidian **0.15.0** or later
+- Obsidian **1.4.0** or later
 - A Plaud account with recordings
 - A session token extracted from the Plaud web app (see [Obtaining your token](#obtaining-your-token))
 
@@ -61,11 +62,14 @@ Open **Settings → Community plugins → Plaud Sync**:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Plaud token | — | Your session token (stored securely, not in plugin settings) |
-| API domain | `https://api.plaud.ai` | API endpoint; change only if your account is in a different region |
+| Plaud token | — | Your session token (stored securely, not in plugin settings; saved tokens are not displayed after saving) |
+| API domain | `https://api.plaud.ai` | API endpoint; must be an HTTPS `plaud.ai` API host |
 | Sync folder | `Plaud` | Vault folder where notes are created |
-| Filename pattern | `plaud-{date}-{title}` | Pattern for new note filenames (`{date}` and `{title}` are replaced) |
+| Filename pattern | `plaud-{date}-{time}-{title}` | Pattern for new note filenames (`{date}`, `{time}`, and `{title}` are replaced) |
 | Sync on startup | `true` | Automatically sync when Obsidian starts |
+| Scheduled sync | `false` | Enable daily syncing while Obsidian is open and one catch-up after missed times |
+| Daily sync times | `08:00, 17:00` | Daily times in the computer's local timezone; enter one or more comma-separated 24-hour times |
+| Scheduled sync status | No scheduled sync yet | Shows the last scheduled result, attempt time, and successful completion time |
 | Update existing notes | `true` | Overwrite notes that already exist (matched by `file_id`) |
 
 ## Usage
@@ -88,7 +92,38 @@ Open the command palette (`Ctrl/Cmd+P`) and search for:
 5. Creates or updates the Markdown note in your sync folder
 6. Advances the `lastSyncAtMs` checkpoint only after the full batch succeeds
 
-If sync is already running (startup or manual), additional attempts are blocked until the current run finishes.
+Manual, startup, and scheduled syncs share one lock and cannot overlap. Manual attempts show a notice if another sync is running. A scheduled run waits for the lock without consuming its scheduled slot.
+
+### Scheduled syncing
+
+Enable **Scheduled sync** in the plugin settings. The default times are **8:00 AM and 5:00 PM**, using your computer's local timezone. Change **Daily sync times** to adjust the schedule, for example `09:30, 18:00`. Duplicate times are removed; invalid entries leave the saved schedule in place.
+
+The schedule runs inside Obsidian and uses the same incremental sync, token storage, and note-update settings as manual sync. Obsidian must be open with the plugin enabled for a timer to run. If Obsidian was closed at one or more scheduled times, the plugin runs **one catch-up sync** when it next opens, even if **Sync on startup** is off. That catch-up also fulfills startup sync when startup syncing is enabled. Several missed times produce one batch because the incremental checkpoint covers earlier recordings.
+
+Enabling scheduling or changing its times starts the new schedule from that moment; times before that change are not treated as missed. Failed scheduled attempts remain recorded and the next scheduled slot tries again. You can also use **Plaud: sync now** to retry immediately. Reloading the plugin does not repeat a slot that was already attempted.
+
+The plugin clears its timer when unloaded and recalculates it after schedule changes. It checks the local clock at least once a minute to accommodate sleep, clock changes, and timezone changes. Times follow local calendar days across daylight-saving changes. A custom time inside a spring-forward gap shifts forward by the gap; a repeated autumn time runs once at its first occurrence.
+
+### Scheduled status for monitoring
+
+The plugin persists the following fields in `<vault>/.obsidian/plugins/plaud-sync/data.json`. Another process can read these fields to monitor scheduled results without accessing the Plaud credential or running a separate sync tool. All timestamps are Unix milliseconds; `0` means no recorded timestamp.
+
+| Field | Meaning |
+|-------|---------|
+| `lastScheduledAttemptAtMs` | Actual start time of the last scheduled or catch-up attempt, saved before contacting Plaud |
+| `lastSuccessfulScheduledSyncAtMs` | Completion time of the last scheduled batch with no failures, including a batch with no new recordings |
+| `scheduledSyncStatus` | `never`, `running`, `success`, `no_new_recordings`, or `failed` |
+| `scheduledSyncFailure` | `null` or a safe failure code: `auth`, `rate_limit`, `network`, `server`, `invalid_response`, `partial_failure`, `persistence`, `interrupted`, or `unknown` |
+| `lastScheduledSlotAtMs` | Most recent scheduled slot claimed by an attempt; prevents repeated catch-up for the same slot |
+| `scheduledSyncEnabledAtMs` | Start of the current schedule, used to exclude times before scheduling was enabled or changed |
+
+`no_new_recordings` means the batch succeeded with zero incremental candidates. `success` means candidates were processed without failures, including notes skipped under **Update existing notes**. Any per-recording failure produces `failed` with `partial_failure` and leaves the last successful timestamp unchanged. Raw error messages, credentials, signed URLs, recording IDs, and recording content are not saved in the scheduled status. A previous session's unfinished `running` attempt is marked `failed` with `interrupted` on the next open. Manual and ordinary startup runs do not overwrite scheduled status.
+
+Security guardrails:
+
+- Plaud API tokens are sent only to HTTPS Plaud API hosts.
+- Signed content URLs must use HTTPS and cannot target local/private hosts.
+- Synced note content is sanitized to avoid frontmatter injection, raw HTML rendering, and remote image embeds from API-provided text.
 
 ## Troubleshooting
 
@@ -129,7 +164,10 @@ src/
 ├── plaud-vault.ts          # Vault note identity and upsert logic
 ├── plaud-sync.ts           # Incremental sync orchestration
 ├── plaud-retry.ts          # Retry/backoff with telemetry sanitization
-└── sync-runtime.ts         # Single-flight sync guard
+├── sync-runtime.ts         # Shared manual/startup/scheduled sync guard
+├── daily-schedule.ts       # Local next-run and catch-up calculations
+├── scheduled-sync.ts       # Scheduled lifecycle, timers, and persistence
+└── scheduled-sync-status.ts # Allowlisted status and failure codes
 test/
 └── *.test.mjs              # Matching test suite for each module
 ```

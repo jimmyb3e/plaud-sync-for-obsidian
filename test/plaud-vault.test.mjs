@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 
 const root = process.cwd();
 const moduleUrl = pathToFileURL(path.join(root, 'src/plaud-vault.ts')).href;
-const {upsertPlaudNote, buildPlaudFilename} = await import(moduleUrl);
+const {upsertPlaudNote, buildPlaudFilename, normalizeSyncFolder} = await import(moduleUrl);
 
 function createMockVault(initialFiles = {}) {
   const files = new Map(Object.entries(initialFiles));
@@ -39,14 +39,25 @@ function createMockVault(initialFiles = {}) {
   };
 }
 
-test('buildPlaudFilename is deterministic and slug-safe', () => {
+test('buildPlaudFilename supports time and removes a matching Plaud title date', () => {
   const filename = buildPlaudFilename({
-    filenamePattern: 'plaud-{date}-{title}',
-    date: '2024-11-04',
-    title: 'Weekly Sync: Team / Product'
+    filenamePattern: 'plaud-{date}-{time}-{title}',
+    date: '2026-07-02',
+    time: '16-00-52',
+    title: '07-02 Debrief Meeting: DFW Proposal and Phase Two Planning'
   });
 
-  assert.equal(filename, 'plaud-2024-11-04-weekly-sync-team-product.md');
+  assert.equal(filename, 'plaud-2026-07-02-16-00-52-debrief-meeting-dfw-proposal-and-phase-two-planning.md');
+});
+
+test('buildPlaudFilename keeps title date when pattern does not include date', () => {
+  const filename = buildPlaudFilename({
+    filenamePattern: '{title}',
+    date: '2026-07-02',
+    title: '07-02 Debrief Meeting'
+  });
+
+  assert.equal(filename, '07-02-debrief-meeting.md');
 });
 
 test('creates sync folder and new note when no existing file_id match', async () => {
@@ -154,4 +165,14 @@ test('applies collision-safe filename fallback for new notes', async () => {
 
   assert.equal(result.action, 'created');
   assert.equal(result.path, 'Plaud/plaud-2024-11-04-first-note-3.md');
+});
+
+test('normalizes nested sync folder slashes safely', () => {
+  assert.equal(normalizeSyncFolder(' Plaud\\Meetings//Q4/ '), 'Plaud/Meetings/Q4');
+});
+
+test('rejects unsafe sync folder paths', () => {
+  assert.throws(() => normalizeSyncFolder('../Secrets'), /parent-directory/);
+  assert.throws(() => normalizeSyncFolder('.obsidian/plugins'), /hidden or Obsidian/);
+  assert.throws(() => normalizeSyncFolder('Plaud:Archive'), /not safe/);
 });

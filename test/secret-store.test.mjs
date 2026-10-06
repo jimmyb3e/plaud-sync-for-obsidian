@@ -70,4 +70,5 @@ test('settings uses secret input flow and token feedback copy', () => {
   assert.match(settingsSource, /getPlaudToken\(/);
   assert.match(settingsSource, /type\s*=\s*'password'/);
   assert.match(settingsSource, /Plaud token/);
+  assert.doesNotMatch(settingsSource, /setValue\(token/);
 });

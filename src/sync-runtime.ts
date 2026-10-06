@@ -1,4 +1,4 @@
-export type SyncTrigger = 'manual' | 'startup';
+export type SyncTrigger = 'manual' | 'startup' | 'scheduled';
 
 export interface PlaudSyncRuntimeOptions {
 	isStartupEnabled: () => boolean;
@@ -11,27 +11,28 @@ const LOCKED_MESSAGE = 'Plaud sync already running. Please wait for current run 
 export interface PlaudSyncRuntime {
 	runManualSync(): Promise<boolean>;
 	runStartupSync(): Promise<boolean>;
+	/** Scheduled persistence and sync both run inside the existing shared lock. */
+	runScheduledSync(task?: () => Promise<void>): Promise<boolean>;
 }
 
 export function createPlaudSyncRuntime(options: PlaudSyncRuntimeOptions): PlaudSyncRuntime {
-	let inFlight: Promise<void> | null = null;
+	let running = false;
 
-	const runWithLock = async (trigger: SyncTrigger): Promise<boolean> => {
-		if (inFlight) {
-			options.onLocked(LOCKED_MESSAGE);
+	const runWithLock = async (trigger: SyncTrigger, task = () => options.runSync(trigger)): Promise<boolean> => {
+		if (running) {
+			if (trigger !== 'scheduled') {
+				options.onLocked(LOCKED_MESSAGE);
+			}
 			return false;
 		}
 
-		const runPromise = options.runSync(trigger);
-		inFlight = runPromise;
+		running = true;
 
 		try {
-			await runPromise;
+			await task();
 			return true;
 		} finally {
-			if (inFlight === runPromise) {
-				inFlight = null;
-			}
+			running = false;
 		}
 	};
 
@@ -43,6 +44,7 @@ export function createPlaudSyncRuntime(options: PlaudSyncRuntimeOptions): PlaudS
 			}
 
 			return runWithLock('startup');
-		}
+		},
+		runScheduledSync: (task) => runWithLock('scheduled', task)
 	};
 }

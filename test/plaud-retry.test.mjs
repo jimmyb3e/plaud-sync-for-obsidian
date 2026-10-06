@@ -87,3 +87,8 @@ test('sanitizes bearer tokens in telemetry messages', () => {
   const message = sanitizeTelemetryMessage('Authorization: Bearer tok_super_secret_value');
   assert.equal(message, 'Authorization: Bearer [REDACTED]');
 });
+
+test('sanitizes signed-url query secrets in telemetry messages', () => {
+  const message = sanitizeTelemetryMessage('GET https://cdn.example.com/file?X-Amz-Signature=abc123&token=tok_secret&safe=ok');
+  assert.equal(message, 'GET https://cdn.example.com/file?X-Amz-Signature=[REDACTED]&token=[REDACTED]&safe=ok');
+});

@@ -59,3 +59,39 @@ test('concurrent sync attempts are prevented with clear messaging', async () => 
   const firstResult = await first;
   assert.equal(firstResult, true);
 });
+
+test('scheduled, startup, and manual tasks share a lock, including scheduled lifecycle writes', async () => {
+  let release;
+  const triggers = [];
+  const runtime = createPlaudSyncRuntime({
+    isStartupEnabled: () => true,
+    runSync: async (trigger) => { triggers.push(trigger); },
+    onLocked: () => {}
+  });
+  const scheduled = runtime.runScheduledSync(async () => {
+    await new Promise((resolve) => { release = resolve; });
+  });
+  assert.equal(await runtime.runStartupSync(), false);
+  assert.equal(await runtime.runManualSync(), false);
+  assert.equal(await runtime.runScheduledSync(), false);
+  assert.deepEqual(triggers, []);
+  release();
+  assert.equal(await scheduled, true);
+  assert.equal(await runtime.runManualSync(), true);
+  assert.deepEqual(triggers, ['manual']);
+});
+
+test('the lock is set before task execution and released even on rejection', async () => {
+  let reentrant;
+  const runtime = createPlaudSyncRuntime({
+    isStartupEnabled: () => true,
+    runSync: async () => {},
+    onLocked: () => {}
+  });
+  await assert.rejects(runtime.runScheduledSync(async () => {
+    reentrant = runtime.runManualSync();
+    throw new Error('failed');
+  }), /failed/);
+  assert.equal(await reentrant, false);
+  assert.equal(await runtime.runStartupSync(), true);
+});
